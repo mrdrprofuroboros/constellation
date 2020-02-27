@@ -1,6 +1,6 @@
 <script>
 	import Graph from './Graph.svelte';
-	import data from '../data/sample.js';
+	import data from '../../data/sample.js';
 </script>
 
 <style>
