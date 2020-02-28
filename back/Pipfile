@@ -10,6 +10,7 @@ py2neo = "==4.3.0"
 flask-graphql = "*"
 maya = "*"
 environs = "*"
+flask-cors = "*"
 
 [dev-packages]
 ipdb = "*"

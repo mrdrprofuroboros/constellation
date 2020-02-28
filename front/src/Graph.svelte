@@ -13,7 +13,7 @@
 
 	let svg;
 	let width = 1500;
-	let height = 1000;
+	let height = 2000;
 
 	const padding = { top: 20, right: 40, bottom: 40, left: 25 };
 

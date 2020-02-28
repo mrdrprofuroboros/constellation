@@ -1,10 +1,12 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
 from flask_graphql import GraphQLView
 
 from source import settings, schemas
 
 
 app = Flask(__name__)
+CORS(app)
 
 app.add_url_rule('/graphql', view_func=GraphQLView.as_view('graphql', schema=schemas.schema, graphiql=True))
 
