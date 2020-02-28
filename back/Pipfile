@@ -6,7 +6,7 @@ name = "pypi"
 [packages]
 flask = "*"
 graphene = "*"
-py2neo = "*"
+py2neo = "==4.3.0"
 flask-graphql = "*"
 maya = "*"
 environs = "*"

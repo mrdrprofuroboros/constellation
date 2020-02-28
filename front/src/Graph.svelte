@@ -1,17 +1,15 @@
-<h2>d3 Force Directed Graph in Sveltejs - svg</h2>
 <script>
 	import { onMount } from 'svelte';
 
 	import { scaleLinear, scaleOrdinal } from 'd3-scale';
 	import { schemeCategory10 } from 'd3-scale-chromatic';
-	import { select, selectAll } from 'd3-selection';
+	import { select, selectAll, event as currentEvent } from 'd3-selection';
 	import { drag } from 'd3-drag';
 	import { forceSimulation, forceLink, forceManyBody, forceCenter } from 'd3-force';
 
-	import {event as currentEvent} from 'd3-selection'  // Needed to get drag working, see: https://github.com/d3/d3/issues/2733
 	let d3 = { scaleLinear, scaleOrdinal, schemeCategory10, select, selectAll, drag, forceSimulation, forceLink, forceManyBody, forceCenter }
 
-	export let graph;
+	export let graph = {'nodes': [], 'links': []};
 
 	let svg;
 	let width = 1500;
@@ -100,24 +98,6 @@
 
 <!-- SVG was here -->
 <svg bind:this={svg}>
-	<g class='axis y-axis'>
-		{#each yTicks as tick}
-			<g class='tick tick-{tick}' transform='translate(0, {yScale(tick)})'>
-				<line x1='{padding.left}' x2='{xScale(22)}'/>
-				<text x='{padding.left - 8}' y='+4'>{tick}</text>
-			</g>
-		{/each}
-	</g>
-
-	<g class='axis x-axis'>
-		{#each xTicks as tick}
-			<g class='tick' transform='translate({xScale(tick)},0)'>
-				<line y1='{yScale(0)}' y2='{yScale(13)}'/>
-				<text y='{height - padding.bottom + 16}'>{tick}</text>
-			</g>
-		{/each}
-	</g>
-  
 	{#each links as link}
     <g stroke='#999' stroke-opacity='0.6'>
       <line x1='{link.source.x}' y1='{d3yScale(link.source.y)}' 
@@ -145,7 +125,7 @@
 
 	circle {
 		stroke: #fff;
-    stroke-width: 1.5;
+        stroke-width: 1.5;
 	}
 
 	.tick line {
