@@ -1,7 +1,7 @@
 import maya
 from graphql import GraphQLError
 from py2neo import Graph
-from py2neo.ogm import GraphObject, Property, RelatedTo
+from py2neo.ogm import GraphObject, Property, RelatedTo, RelatedFrom, Related
 
 from source import settings
 
@@ -27,164 +27,239 @@ class BaseModel(GraphObject):
             if hasattr(self, key):
                 setattr(self, key, value)
 
-    @property
-    def all(self):
-        return self.match(graph)
+    @classmethod
+    def all(cls):
+        return cls.match(graph)
+
+    @classmethod
+    def fetch(cls, _id = None):
+        obj = cls.match(graph, _id).first
+        if obj is None:
+            raise GraphQLError(f'"{_id}" has not been found')
+        return obj
 
     def save(self):
         graph.push(self)
 
 
-class Product(BaseModel):
-    __primarykey__ = 'name'
+class User(BaseModel):
+    __primarykey__ = 'username'
 
-    name = Property()
-    brand = Property()
-    category = Property()
+    username = Property()
+    password = Property()
+
+    friends = Related('User', 'FRIENDS')
+    playlists = RelatedTo('Playlist', 'CREATED')
+
+    collectives = RelatedTo('Collective', 'LISTENS')
+    composers = RelatedTo('Composer', 'LISTENS')
+    performers = RelatedTo('Performer', 'LISTENS')
+    releases = RelatedTo('Release', 'LISTENS')
 
     def as_dict(self):
         return {
-            'name': self.name,
-            'brand': self.brand,
-            'category': self.category
+            'username': self.username,
         }
 
-    def fetch(self):
-        return self.match(graph, self.name).first()
 
-
-class Store(BaseModel):
+class Playlist(BaseModel):
     name = Property()
-    address = Property()
 
-    products = RelatedTo('Product', 'SELLS')
-    receipts = RelatedTo('Product', 'EMITTED')
+    creators = RelatedFrom('User', 'CREATED')
 
-    def fetch(self, _id):
-        return Store.match(graph, _id).first()
-
-    def fetch_by_name_and_address(self):
-        return Store.match(graph).where(
-            f'_.name = "{self.name}" AND _.address = "{self.address}"'
-        ).first()
-
-    def fetch_products(self):
-        return [{
-            **product[0].as_dict(),
-            **product[1]
-        } for product in self.products._related_objects]
+    tracks = RelatedTo('Track', 'INCLUDES')
 
     def as_dict(self):
         return {
             '_id': self.__primaryvalue__,
             'name': self.name,
-            'address': self.address
+            'tracks': [track.as_dict() for track in self.tracks],
         }
 
 
-class Receipt(BaseModel):
-    total_amount = Property()
-    timestamp = Property()
+class Genre(BaseModel):
+    name = Property()
 
-    products = RelatedTo('Product', 'HAS')
+    ancestors = RelatedFrom('Genre', 'COMES_FROM')
+    descendants = RelatedTo('Genre', 'INFLUENCED_ON')
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    compositions = RelatedFrom('Composition', 'BELONGS_TO')
+    releases = RelatedFrom('Release', 'BELONGS_TO')
+    cycles = RelatedFrom('Cycle', 'BELONGS_TO')
 
-        if kwargs.get('validate', False):
-            self.__validate_timestamp()
+    epoches = RelatedTo('Epoch', 'BELONGS_TO')
 
     def as_dict(self):
         return {
             '_id': self.__primaryvalue__,
-            'total_amount': self.total_amount,
-            'timestamp': maya.parse(self.timestamp)
+            'name': self.name,
         }
 
-    def fetch(self, _id):
-        return self.match(graph, _id).first()
 
-    def fetch_products(self):
-        return [{
-            **product[0].as_dict(),
-            **product[1]
-        } for product in self.products._related_objects]
-
-    def __validate_timestamp(self):
-        try:
-            maya.parse(self.timestamp, day_first=True, year_first=False)
-        except Exception:
-            raise GraphQLError(
-                'The timestamp you provided is not within the format: "dd/mm/yyyy hh:mm"'
-            )
-
-
-class Customer(BaseModel):
-    __primarykey__ = 'email'
+class Epoch(BaseModel):
     name = Property()
-    email = Property()
+    started = Property()
+    ended = Property()
 
-    receipts = RelatedTo('Receipt', 'HAS')
-    stores = RelatedTo('Store', 'GOES_TO')
+    ancestors = RelatedFrom('Epoch', 'COMES_FROM')
+    descendants = RelatedTo('Epoch', 'INFLUENCED_ON')
 
-    def fetch(self):
-        customer = self.match(graph, self.email).first()
-        if customer is None:
-            raise GraphQLError(f'"{self.email}" has not been found in our customers list.')
-
-        return customer
+    genres = RelatedFrom('Genre', 'BELONGS_TO')
 
     def as_dict(self):
         return {
-            'email': self.email,
-            'name': self.name
+            '_id': self.__primaryvalue__,
+            'name': self.name,
+            'started': self.started,
+            'ended': self.ended,
         }
 
-    def __verify_products(self, products):
-        _total_amount = 0
-        for product in products:
-            _product = Product(name=product.get('name')).fetch()
-            if _product is None:
-                raise GraphQLError(f'"{product.name}" has not been found in our products list.')
 
-            _total_amount += product['price'] * product['amount']
-            product['product'] = _product
-        return products, _total_amount
+class Label(BaseModel):
+    name = Property()
 
-    def __verify_receipt(self, receipt):
-        customer_properties = f":Customer {{email: '{self.email}'}}"
-        receipt_properties = f":Receipt {{timestamp: '{receipt.timestamp}', total_amount:{receipt.total_amount}}}"
-        existing_receipts = graph.run(
-            f"MATCH ({customer_properties})-[relation:HAS]-({receipt_properties}) RETURN relation").data()
+    tracks = RelatedTo('Track', 'RECORDED')
+    releases = RelatedTo('Release', 'RECORDED')
 
-        if existing_receipts:
-            raise GraphQLError("The receipt you're trying to submit already exists.")
+    def as_dict(self):
+        return {
+            '_id': self.__primaryvalue__,
+            'name': self.name,
+        }
 
-    def __link_products(self, products, total_amount, timestamp):
-        receipt = Receipt(total_amount=total_amount, timestamp=timestamp, validate=True)
-        self.__verify_receipt(receipt)
 
-        for item in products:
-            receipt.products.add(item.pop('product'), properties=item)
+class Collective(BaseModel):
+    name = Property()
+    formed = Property()
+    disbanded = Property()
 
-        return receipt
+    listeners = RelatedFrom('User', 'LISTENS')
+    performers = RelatedFrom('Person', 'PLAYED_IN')
 
-    def __verify_store(self, store):
-        _store = Store(**store).fetch_by_name_and_address()
-        if _store is None:
-            raise GraphQLError(f"The store \"{store['name']}\" does not exist in our stores list.")
+    tracks = RelatedTo('Track', 'RECORDED')
+    releases = RelatedTo('Release', 'RECORDED')
 
-        return _store
+    def as_dict(self):
+        return {
+            '_id': self.__primaryvalue__,
+            'name': self.name,
+        }
 
-    def __add_links(self, store, receipt):
-        store.receipts.add(receipt)
-        self.stores.add(store)
-        self.receipts.add(receipt)
 
-    def submit_receipt(self, products, timestamp, store):
-        self.__add_links(
-            self.__verify_store(store),
-            self.__link_products(*self.__verify_products(products), timestamp)
-        )
+class Person(BaseModel):
+    performer = Label('Performer')
+    composer = Label('Composer')
 
-        self.save()
+    name = Property()
+    born = Property()
+    died = Property()
+
+    collaborators = Related('Person', 'COLLABORATED_WITH')
+
+    compositions = RelatedTo('Composition', 'COMPOSED')
+    cycles = RelatedTo('Cycle', 'COMPOSED')
+
+    tracks = RelatedTo('Track', 'RECORDED')
+    releases = RelatedTo('Release', 'RECORDED')
+
+    def as_dict(self):
+        return {
+            '_id': self.__primaryvalue__,
+            'name': self.name,
+            'born': self.born,
+            'died': self.died,
+        }
+
+
+class Release(BaseModel):
+    aggregator = Label('Aggregator')
+    releases = RelatedTo('Release', 'AGGREGATES')
+
+    albumn = Label('Albumn')
+    ep = Label('EP')
+    single = Label('Single')
+    live = Label('Live')
+    compillation = Label('Compillation')
+
+    name = Property()
+    year = Property()
+
+    listeners = RelatedFrom('User', 'LISTENS')
+    label = RelatedFrom('Label', 'RECORDED')
+    performers = RelatedFrom('Person', 'RECORDED')
+    collectives = RelatedFrom('Collective', 'RECORDED')
+
+    genres = RelatedTo('Genre', 'BELONGS_TO')
+    compositions = RelatedTo('Composition', 'INCLUDES')
+    tracks = RelatedTo('Track', 'INCLUDES')
+
+    def as_dict(self):
+        return {
+            '_id': self.__primaryvalue__,
+            'name': self.name,
+            'year': self.year,
+        }
+
+
+class Cycle(BaseModel):
+    name = Property()
+    started = Property()
+    finished = Property()
+
+    composers = RelatedFrom('Composer', 'COMPOSED')
+
+    genres = RelatedTo('Genre', 'BELONGS_TO')
+    compositions = RelatedTo('Composition', 'INCLUDES')
+
+    def as_dict(self):
+        return {
+            '_id': self.__primaryvalue__,
+            'name': self.name,
+            'started': self.started,
+            'finished': self.finished,
+        }
+
+
+class Composition(BaseModel):
+    aggregator = Label('Aggregator')
+    compositions = RelatedTo('Composition', 'AGGREGATES')
+
+    name = Property()
+    started = Property()
+    finished = Property()
+
+    cycle = RelatedFrom('Cycle', 'INCLUDES')
+    composers = RelatedFrom('Person', 'COMPOSED')
+    listeners = RelatedFrom('User', 'LISTENS')
+
+    genres = RelatedTo('Genre', 'BELONGS_TO')
+    tracks = RelatedTo('Track', 'RECORDED')
+
+    def as_dict(self):
+        return {
+            '_id': self.__primaryvalue__,
+            'name': self.name,
+            'started': self.started,
+            'finished': self.finished,
+        }
+
+
+class Track(BaseModel):
+    aggregator = Label('Aggregator')
+    tracks = RelatedTo('Track', 'AGGREGATES')
+
+    name = Property()
+    year = Property()
+
+    playlist = RelatedFrom('Playlist', 'INCLUDES')
+    label = RelatedFrom('Label', 'RECORDED')
+    performers = RelatedFrom('Person', 'RECORDED')
+    collectives = RelatedFrom('Collective', 'RECORDED')
+    composition = RelatedFrom('Composition', 'RECORDED')
+
+    def as_dict(self):
+        return {
+            '_id': self.__primaryvalue__,
+            'name': self.name,
+            'year': self.year,
+        }
