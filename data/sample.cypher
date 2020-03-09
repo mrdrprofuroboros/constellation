@@ -1,3 +1,5 @@
+CREATE (u:User {username: "matas", password: "thehash"})
+
 CREATE (rec1:Receipt {total_amount: 10.37, timestamp: "28/04/2018 19:19"})
 CREATE (rec2:Receipt {total_amount: 3.85, timestamp: "26/04/2018 20:18"})
 

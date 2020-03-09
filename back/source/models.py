@@ -1,7 +1,7 @@
 import maya
 from graphql import GraphQLError
 from py2neo import Graph
-from py2neo.ogm import GraphObject, Property, RelatedTo, RelatedFrom, Related
+from py2neo.ogm import GraphObject, Property, RelatedTo, RelatedFrom, Related, Label
 
 from source import settings
 
@@ -33,7 +33,7 @@ class BaseModel(GraphObject):
 
     @classmethod
     def fetch(cls, _id = None):
-        obj = cls.match(graph, _id).first
+        obj = cls.match(graph, _id).first()
         if obj is None:
             raise GraphQLError(f'"{_id}" has not been found')
         return obj
@@ -48,17 +48,18 @@ class User(BaseModel):
     username = Property()
     password = Property()
 
+    email = Property()
+
     friends = Related('User', 'FRIENDS')
     playlists = RelatedTo('Playlist', 'CREATED')
 
-    collectives = RelatedTo('Collective', 'LISTENS')
-    composers = RelatedTo('Composer', 'LISTENS')
-    performers = RelatedTo('Performer', 'LISTENS')
+    artists = RelatedTo('Artist', 'LISTENS')
     releases = RelatedTo('Release', 'LISTENS')
 
     def as_dict(self):
         return {
             'username': self.username,
+            'email': self.email,
         }
 
 
@@ -85,7 +86,6 @@ class Genre(BaseModel):
 
     compositions = RelatedFrom('Composition', 'BELONGS_TO')
     releases = RelatedFrom('Release', 'BELONGS_TO')
-    cycles = RelatedFrom('Cycle', 'BELONGS_TO')
 
     epoches = RelatedTo('Epoch', 'BELONGS_TO')
 
@@ -115,38 +115,8 @@ class Epoch(BaseModel):
         }
 
 
-class Label(BaseModel):
-    name = Property()
-
-    tracks = RelatedTo('Track', 'RECORDED')
-    releases = RelatedTo('Release', 'RECORDED')
-
-    def as_dict(self):
-        return {
-            '_id': self.__primaryvalue__,
-            'name': self.name,
-        }
-
-
-class Collective(BaseModel):
-    name = Property()
-    formed = Property()
-    disbanded = Property()
-
-    listeners = RelatedFrom('User', 'LISTENS')
-    performers = RelatedFrom('Person', 'PLAYED_IN')
-
-    tracks = RelatedTo('Track', 'RECORDED')
-    releases = RelatedTo('Release', 'RECORDED')
-
-    def as_dict(self):
-        return {
-            '_id': self.__primaryvalue__,
-            'name': self.name,
-        }
-
-
-class Person(BaseModel):
+class Artist(BaseModel):
+    collective = Label('Collective')
     performer = Label('Performer')
     composer = Label('Composer')
 
@@ -154,11 +124,11 @@ class Person(BaseModel):
     born = Property()
     died = Property()
 
-    collaborators = Related('Person', 'COLLABORATED_WITH')
+    related = Related('Artist', 'RELATED_WITH')  # Member, OriginalMember, Tribute, Collaborator, etc
+
+    listeners = RelatedFrom('User', 'LISTENS')
 
     compositions = RelatedTo('Composition', 'COMPOSED')
-    cycles = RelatedTo('Cycle', 'COMPOSED')
-
     tracks = RelatedTo('Track', 'RECORDED')
     releases = RelatedTo('Release', 'RECORDED')
 
@@ -171,91 +141,68 @@ class Person(BaseModel):
         }
 
 
+class Composition(BaseModel):
+    aggregator = Label('Aggregator')
+    items = RelatedTo('Composition', 'AGGREGATES')
+
+    name = Property()
+    started = Property()
+    finished = Property()
+
+    composers = RelatedFrom('Composer', 'COMPOSED')
+    listeners = RelatedFrom('User', 'LISTENS')
+
+    genres = RelatedTo('Genre', 'BELONGS_TO')
+    tracks = RelatedTo('Track', 'RECORDED_ON')
+
+    def as_dict(self):
+        return {
+            '_id': self.__primaryvalue__,
+            'name': self.name,
+            'started': self.started,
+            'finished': self.finished,
+        }
+
+
 class Release(BaseModel):
     aggregator = Label('Aggregator')
-    releases = RelatedTo('Release', 'AGGREGATES')
+    items = RelatedTo('Release', 'AGGREGATES')
 
     albumn = Label('Albumn')
     ep = Label('EP')
     single = Label('Single')
     live = Label('Live')
-    compillation = Label('Compillation')
+    compilation = Label('Compilation')
 
     name = Property()
-    year = Property()
+    date = Property()
+    label = Property()
 
     listeners = RelatedFrom('User', 'LISTENS')
-    label = RelatedFrom('Label', 'RECORDED')
-    performers = RelatedFrom('Person', 'RECORDED')
-    collectives = RelatedFrom('Collective', 'RECORDED')
 
-    genres = RelatedTo('Genre', 'BELONGS_TO')
-    compositions = RelatedTo('Composition', 'INCLUDES')
     tracks = RelatedTo('Track', 'INCLUDES')
 
     def as_dict(self):
         return {
             '_id': self.__primaryvalue__,
             'name': self.name,
-            'year': self.year,
-        }
-
-
-class Cycle(BaseModel):
-    name = Property()
-    started = Property()
-    finished = Property()
-
-    composers = RelatedFrom('Composer', 'COMPOSED')
-
-    genres = RelatedTo('Genre', 'BELONGS_TO')
-    compositions = RelatedTo('Composition', 'INCLUDES')
-
-    def as_dict(self):
-        return {
-            '_id': self.__primaryvalue__,
-            'name': self.name,
-            'started': self.started,
-            'finished': self.finished,
-        }
-
-
-class Composition(BaseModel):
-    aggregator = Label('Aggregator')
-    compositions = RelatedTo('Composition', 'AGGREGATES')
-
-    name = Property()
-    started = Property()
-    finished = Property()
-
-    cycle = RelatedFrom('Cycle', 'INCLUDES')
-    composers = RelatedFrom('Person', 'COMPOSED')
-    listeners = RelatedFrom('User', 'LISTENS')
-
-    genres = RelatedTo('Genre', 'BELONGS_TO')
-    tracks = RelatedTo('Track', 'RECORDED')
-
-    def as_dict(self):
-        return {
-            '_id': self.__primaryvalue__,
-            'name': self.name,
-            'started': self.started,
-            'finished': self.finished,
+            'date': self.date,
+            'label': self.label,
         }
 
 
 class Track(BaseModel):
     aggregator = Label('Aggregator')
-    tracks = RelatedTo('Track', 'AGGREGATES')
+    items = RelatedTo('Track', 'AGGREGATES')
 
     name = Property()
     year = Property()
 
-    playlist = RelatedFrom('Playlist', 'INCLUDES')
-    label = RelatedFrom('Label', 'RECORDED')
-    performers = RelatedFrom('Person', 'RECORDED')
-    collectives = RelatedFrom('Collective', 'RECORDED')
-    composition = RelatedFrom('Composition', 'RECORDED')
+    playlists = RelatedFrom('Playlist', 'INCLUDES')
+    artists = RelatedFrom('Artist', 'RECORDED')
+
+    composition = RelatedFrom('Composition', 'RECORDED_ON')
+    release = RelatedFrom('Release', 'INCLUDES')
 
     def as_dict(self):
         return {
