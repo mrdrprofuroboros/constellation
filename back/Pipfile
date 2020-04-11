@@ -11,6 +11,9 @@ flask-graphql = "*"
 maya = "*"
 environs = "*"
 flask-cors = "*"
+requests = "*"
+jupyter = "*"
+tqdm = "*"
 
 [dev-packages]
 ipdb = "*"

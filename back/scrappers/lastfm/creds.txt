@@ -1,0 +1,4 @@
+Application name	constellation
+API key	43b92a648c3db579499a902b89d61ef1
+Shared secret	ac07b922157f53e74b2c1c981ffe55e8
+Registered to	mrdruroboros

@@ -126,8 +126,30 @@ from .models import User, Playlist, Genre, Epoch, Artist, Release, Composition, 
 #     create_customer = CreateCustomer.Field()
 #     submit_receipt = SubmitReceipt.Field()
 #
+
+
 class UserSchema(graphene.ObjectType):
     username = graphene.String()
+    email = graphene.String()
+
+    friends = graphene.List(lambda: UserSchema)
+    playlists = graphene.List(lambda: PlaylistSchema)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._user = None
+
+    @property
+    def user(self):
+        if not self._user:
+            self._user = User(username=self.username).fetch()
+        return self._user
+
+    def resolve_friends(parent, info):
+        return [UserSchema(**user.as_dict()) for user in parent.user.friends]
+
+    def resolve_playlists(parent, info):
+        return [PlaylistSchema(**playlist.as_dict()) for playlist in parent.user.playlists]
 
 
 class CreateUser(graphene.Mutation):
@@ -148,13 +170,26 @@ class CreateUser(graphene.Mutation):
 
         return CreateUser(user=user, ok=True)
 
+# =============================================================================
+
+class PlaylistSchema(graphene.ObjectType):
+    id = graphene.ID()
+    name = graphene.String()
+
+
+# =============================================================================
+
 
 class Query(graphene.ObjectType):
     user = graphene.Field(lambda: UserSchema, username=graphene.String())
+    all_users = graphene.Field(lambda: UserSchema)
 
     def resolve_user(parent, info, username):
         user = User.fetch(username)
         return UserSchema(**user.as_dict())
+
+    def resolve_all_users(parent, info):
+        return [UserSchema(**user.as_dict()) for user in User.all()]
 
 
 class Mutations(graphene.ObjectType):

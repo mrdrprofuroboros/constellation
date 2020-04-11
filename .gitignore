@@ -1,3 +1,4 @@
+back/data
 front/node_modules
 front/public/build
 _
@@ -6,3 +7,4 @@ back/source/__pycache__
 
 .DS_Store
 .idea
+**/.ipynb_checkpoints

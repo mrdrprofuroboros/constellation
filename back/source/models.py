@@ -66,15 +66,14 @@ class User(BaseModel):
 class Playlist(BaseModel):
     name = Property()
 
-    creators = RelatedFrom('User', 'CREATED')
+    creator = RelatedFrom('User', 'CREATED')
 
     tracks = RelatedTo('Track', 'INCLUDES')
 
     def as_dict(self):
         return {
-            '_id': self.__primaryvalue__,
+            'id': self.__primaryvalue__,
             'name': self.name,
-            'tracks': [track.as_dict() for track in self.tracks],
         }
 
 
@@ -91,7 +90,7 @@ class Genre(BaseModel):
 
     def as_dict(self):
         return {
-            '_id': self.__primaryvalue__,
+            'id': self.__primaryvalue__,
             'name': self.name,
         }
 
@@ -108,7 +107,7 @@ class Epoch(BaseModel):
 
     def as_dict(self):
         return {
-            '_id': self.__primaryvalue__,
+            'id': self.__primaryvalue__,
             'name': self.name,
             'started': self.started,
             'ended': self.ended,
@@ -116,10 +115,14 @@ class Epoch(BaseModel):
 
 
 class Artist(BaseModel):
+    __primarykey__ = '_id'
+
     collective = Label('Collective')
     performer = Label('Performer')
     composer = Label('Composer')
+    producer = Label('Producer')
 
+    _id = Property()
     name = Property()
     born = Property()
     died = Property()
@@ -130,11 +133,11 @@ class Artist(BaseModel):
 
     compositions = RelatedTo('Composition', 'COMPOSED')
     tracks = RelatedTo('Track', 'RECORDED')
-    releases = RelatedTo('Release', 'RECORDED')
+    releases = RelatedTo('ReleaseGroup', 'PARTICIPATED')
 
     def as_dict(self):
         return {
-            '_id': self.__primaryvalue__,
+            '_id': self._id,
             'name': self.name,
             'born': self.born,
             'died': self.died,
@@ -164,21 +167,39 @@ class Composition(BaseModel):
         }
 
 
-class Release(BaseModel):
-    aggregator = Label('Aggregator')
-    items = RelatedTo('Release', 'AGGREGATES')
+class ReleaseGroup(BaseModel):
+    __primarykey__ = '_id'
 
-    albumn = Label('Albumn')
+    album = Label('Album')
     ep = Label('EP')
     single = Label('Single')
     live = Label('Live')
     compilation = Label('Compilation')
+    va = Label('VA')
+    bootleg = Label('Bootleg')
 
+    _id = Property()
     name = Property()
     date = Property()
-    label = Property()
 
     listeners = RelatedFrom('User', 'LISTENS')
+    releases = RelatedTo('Release', 'AGGREGATES')
+
+    def as_dict(self):
+        return {
+            '_id': self.__primaryvalue__,
+            'name': self.name,
+            'date': self.date,
+            'label': self.label,
+        }
+
+
+class Release(BaseModel):
+    name = Property()
+    date = Property()
+
+    listeners = RelatedFrom('User', 'LISTENS')
+    release_group = RelatedFrom('ReleaseGroup', 'AGGREGATES')
 
     tracks = RelatedTo('Track', 'INCLUDES')
 
@@ -191,10 +212,7 @@ class Release(BaseModel):
         }
 
 
-class Track(BaseModel):
-    aggregator = Label('Aggregator')
-    items = RelatedTo('Track', 'AGGREGATES')
-
+class Recording(BaseModel):
     name = Property()
     year = Property()
 
